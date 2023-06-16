@@ -28,7 +28,6 @@ def sample_p_0(x, args):
         return torch.Tensor(*[x.size(0), args.latent_dim]).uniform_(-1, 1).to(x.device)
 
 
-
 def label2sf2smi(out_num):
     m_sf = sf.encoding_to_selfies(out_num, char_dict, enc_type='label')
     m_smi = sf.decoder(m_sf)
@@ -396,7 +395,7 @@ if __name__ == '__main__':
     args = get_args()
     # print(args.mask)
     exp_id = 'ebm_design'
-    output_dir = get_output_dir(exp_id, fs_prefix='../alienware_')
+    output_dir = get_output_dir(exp_id, fs_prefix='../exp_')
     # copy_source(__file__, output_dir)
     set_gpu(args.gpu)
 
