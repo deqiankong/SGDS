@@ -1,4 +1,4 @@
-# SGDS
+# Sampling with Gradual Distribution Shifting (SGDS)
 Code for the paper "Molecule Design by Latent Space Energy-based Modeling and Gradual Distribution Shifting" in UAI 2023
 
 ![alt text](https://github.com/deqiankong/SGDS/blob/main/model.png)
