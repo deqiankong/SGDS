@@ -3,6 +3,14 @@ This is the repository for our paper "Molecule Design by Latent Space Energy-bas
 
 ![alt text](https://github.com/deqiankong/SGDS/blob/main/model.png)
 
+In this paper, we studied the following property optimization tasks:
+* single-objective p-logP maximization
+* single-objective QED maximization
+* single-objective ESR1 maximization
+* single-objective ACAA1 maximization
+* multi-objective (ESR1, QED, SA) optmization
+* multi-objective (ACAA1, QED, SA) optmization
+
 ## Cite
 <pre>
 @inproceedings{kong2023molecule,
