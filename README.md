@@ -11,6 +11,11 @@ In this paper, we studied the following property optimization tasks:
 * multi-objective (ESR1, QED, SA) optmization
 * multi-objective (ACAA1, QED, SA) optmization
 
+## Enviroment
+We follow the previous work [LIMO](https://github.com/Rose-STL-Lab/LIMO) for setting up RDKit, Open Babel and AutoDock-GPU. We extend our gratitude to the authors for their significant contributions.
+
+## Data
+
 ## Cite
 <pre>
 @inproceedings{kong2023molecule,
