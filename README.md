@@ -1,5 +1,5 @@
 # Sampling with Gradual Distribution Shifting (SGDS)
-This is the repository for our paper "Molecule Design by Latent Space Energy-based Modeling and Gradual Distribution Shifting" in UAI 2023.
+This is the repository for our paper "Molecule Design by Latent Space Energy-based Modeling and Gradual Distribution Shifting" in UAI 2023. [PDF](https://proceedings.mlr.press/v216/kong23a/kong23a.pdf)
 
 ![alt text](https://github.com/deqiankong/SGDS/blob/main/model.png)
 
