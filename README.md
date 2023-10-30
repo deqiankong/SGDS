@@ -22,6 +22,18 @@ We follow the previous work [LIMO](https://github.com/Rose-STL-Lab/LIMO) for set
 ## Data
 We use selfies representations of ZINC250k with corresponding property values. All the property values can be computed either by RDKit or AutoDock-GPU.
 
+## Usage
+For model training given certain property (i.e. ESR1),
+```
+cd single_design_esr1
+python main.py
+```
+
+For property optimizaton task,
+```
+python single_design.py or multi_design.py
+```
+
 ## Cite
 <pre>
 @inproceedings{kong2023molecule,
