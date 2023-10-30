@@ -6,8 +6,8 @@ This is the repository for our paper "Molecule Design by Latent Space Energy-bas
 In this paper, we studied the following property optimization tasks:
 * single-objective p-logP maximization
 * single-objective QED maximization
-* single-objective ESR1 maximization
-* single-objective ACAA1 maximization
+* single-objective ESR1 binding affinity maximization
+* single-objective ACAA1 binding affinity maximization
 * multi-objective (ESR1, QED, SA) optmization
 * multi-objective (ACAA1, QED, SA) optmization
 
