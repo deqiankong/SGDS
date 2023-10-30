@@ -1,7 +1,7 @@
 # Sampling with Gradual Distribution Shifting (SGDS)
 This is the repository for our paper "Molecule Design by Latent Space Energy-based Modeling and Gradual Distribution Shifting" in UAI 2023. [PDF](https://proceedings.mlr.press/v216/kong23a/kong23a.pdf)
 
-![alt text](https://github.com/deqiankong/SGDS/blob/main/model.png)
+![alt text](https://github.com/deqiankong/SGDS/blob/main/figure/model.png)
 
 In this paper, we studied the following property optimization tasks:
 * single-objective p-logP maximization
@@ -10,6 +10,9 @@ In this paper, we studied the following property optimization tasks:
 * single-objective ACAA1 binding affinity maximization
 * multi-objective (ESR1, QED, SA) optmization
 * multi-objective (ACAA1, QED, SA) optmization
+
+![alt text](https://github.com/deqiankong/SGDS/blob/main/figure/single.png)
+![alt text](https://github.com/deqiankong/SGDS/blob/main/figure/multi.png)
 
 ## Enviroment
 We follow the previous work [LIMO](https://github.com/Rose-STL-Lab/LIMO) for setting up RDKit, Open Babel and AutoDock-GPU. We extend our gratitude to the authors for their significant contributions.
