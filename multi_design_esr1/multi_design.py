@@ -43,137 +43,6 @@ def cal_logp(smi):
     return logP
 
 
-def check_model(model_path, args):
-    args = args
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-
-    test_data = MolDataset(args.data_dir, "test")
-    test_loader = DataLoader(dataset=test_data, batch_size=1000,
-                             shuffle=True, drop_last=False, num_workers=2)
-
-    logger.info('loading model from ' + model_path)
-    vocab_size = 109
-    # model = RNNEBM(args, vocab_size=vocab_size,
-    #                dec_word_dim=args.dec_word_dim,
-    #                dec_h_dim=args.dec_h_dim,
-    #                dec_num_layers=args.dec_num_layers,
-    #                dec_dropout=args.dec_dropout,
-    #                latent_dim=args.latent_dim,
-    #                max_sequence_length=args.max_len)
-    # checkpoint = torch.load(model_path)
-    # model.load_state_dict(checkpoint['model'].state_dict())
-    checkpoint = torch.load(model_path)
-    model = checkpoint['model']
-    model.cuda()
-    print(model)
-
-    args.beta = 1
-    model.prior_network.eval()
-    criterion = nn.NLLLoss(reduction='sum')
-    total_nll_abp = 0.
-    pps = 0.
-    nps = 0.
-    cds = 0.
-    n_cd = 0.
-    test_data_size = 0
-    generated_samples = []
-    properties = []
-    for i, data in enumerate(tqdm(test_loader)):
-        # if i > 2:
-        #     break
-        x, x_len, ba, sas, qed = data
-        x, ba, sas, qed = x.cuda(), ba.cuda(), sas.cuda(), qed.cuda()
-        x_len = x_len.cuda()
-        target = x.detach().clone()
-        target = target[:, 1:]
-        batch_size = x.size(0)
-
-        z_0 = sample_p_0(x, args)
-        z_samples, z_grads = model.infer_z(z=z_0, x=x, x_len=x_len, y=[ba, sas, qed], beta=args.beta,
-                                           step_size=args.z_step_size, training=False,
-                                           dropout=args.dec_dropout, debug=args.debug)
-
-        preds = model.decoder(x, z_samples, training=False)
-        abp_loss = criterion(preds.view(-1, preds.size(2)), target.reshape(-1)) / batch_size
-
-        z_0_prior = sample_p_0(x, args)
-        z_prior, _ = model.infer_prior_z(z_0_prior, args)
-        positive_potential = model.ebm_prior(z_samples, args).mean()
-        negative_potential = model.ebm_prior(z_prior, args).mean()
-        cd = positive_potential - negative_potential
-        pps += positive_potential
-        nps += negative_potential
-        cds += cd
-        n_cd += 1.
-
-        total_nll_abp += abp_loss.item()
-        test_data_size += batch_size
-
-        samples, _ = model.inference(x.device, sos_idx=108, z=z_prior, training=False)
-        y_hat = model.mlp_qed(z_prior)
-
-        for s in samples:
-            generated_samples.append(label2sf2smi(s.cpu().numpy()))
-
-        properties.append(y_hat.detach().cpu().numpy())
-
-    properties = np.array(properties).reshape(len(generated_samples))
-    properties = list(properties)
-
-    logPs, SASs, QEDs, PlogPs = [], [], [], []
-    num_valid = 0
-    for s in generated_samples:
-        _is_valid = is_valid(s)
-        if _is_valid != 0:
-            num_valid += _is_valid[0]
-            logP, SAS, QED, plogP = _is_valid[1]
-            logPs.append(logP)
-            QEDs.append(QED)
-            PlogPs.append(plogP)
-
-    validity = num_valid / len(generated_samples)
-    data_properties = get_data_properties(args.test_file)
-
-    epoch = 0
-    single_property_plot_qed(args, epoch, QEDs, properties, data_properties)
-    # test_data = MolDataset(args.data_dir, "test")
-    # data_plogp = test_data.PlogP
-    # data_plogp = data_plogp.numpy().tolist()
-    # single_property_plot_plogp(args, epoch, PlogPs, properties, data_plogp)
-
-    # uniqueness
-    unique_set = set(generated_samples)  
-    validity = num_valid / len(generated_samples)
-    uniqueness = len(unique_set) / len(generated_samples)
-
-    # novelty
-    ZINC_file = "../ZINC/test_5.txt"
-    ZINC_data = [x.strip().split()[0] for x in open(ZINC_file) if not x.startswith("#smi")]
-    ZINC_set = set(ZINC_data)
-    novel_list = list(unique_set - ZINC_set)
-    novelty = len(novel_list) / len(generated_samples)
-
-    rec_abp = total_nll_abp / test_data_size
-    pe = pps / n_cd
-    ne = nps / n_cd
-    mcd = cds / n_cd
-
-    logger.record_tabular('ABP REC', rec_abp)
-    logger.record_tabular('PP', pe)
-    logger.record_tabular('NP', ne)
-    logger.record_tabular('CD', mcd)
-    logger.record_tabular('Prior Validity', validity)
-    logger.record_tabular('Prior Uniqueness', uniqueness)
-    logger.record_tabular('Prior Novelty', novelty)
-    # logger.record_tabular('Posterior Validity', posterior_prop_valid)
-
-    logger.dump_tabular()
-
-    model.train()
-    return validity
-
-
 def property_plot(args, logps, y_hat, data_properties):
     from matplotlib import pyplot as plt
     import seaborn as sns
@@ -337,8 +206,8 @@ def multi_prop_design(model_path, args):
     print(model)
 
     args.beta = 1
-    num_design = 20
-
+    num_design = 50
+    bs = 1000
     sos = torch.tensor([108], dtype=torch.long)
     criterion = nn.NLLLoss(reduction='sum')
 
@@ -355,13 +224,13 @@ def multi_prop_design(model_path, args):
             design_data = DesignDataset(x=test_data.Xdata, ba=test_data.ba0, sas=test_data.sas, qed=test_data.qed)
         else:
             design_data = DesignDataset(x=Xdata, ba=ba_data, sas=sas_data, qed=qed_data)
-        design_loader = DataLoader(dataset=design_data, batch_size=1000, shuffle=True, drop_last=False)
+        design_loader = DataLoader(dataset=design_data, batch_size=bs, shuffle=True, drop_last=False)
 
         # Train Model based on new dataset
         model.train()
         train_data = design_data
-        train_loader = DataLoader(dataset=train_data, batch_size=1000, shuffle=True, drop_last=False)
-        for i, data in enumerate(tqdm(train_loader)):
+        train_loader = DataLoader(dataset=train_data, batch_size=bs, shuffle=True, drop_last=False)
+        for i, data in enumerate(tqdm(train_loader, desc='Training')):
             x, ba, sas, qed = data
             x, ba, sas, qed = x.cuda(), ba.cuda(), sas.cuda(), qed.cuda()
             target = x.detach().clone()
@@ -407,7 +276,7 @@ def multi_prop_design(model_path, args):
             optimizer.step()
 
             # ebm update
-            num_ebm_updates = 2
+            num_ebm_updates = 1
             for j in range(num_ebm_updates):
                 optimizer_prior.zero_grad()
 
@@ -429,7 +298,7 @@ def multi_prop_design(model_path, args):
         ba_old, ba_new = [], []
 
         generated_samples = []
-        for i, data in enumerate(tqdm(design_loader)):
+        for i, data in enumerate(tqdm(design_loader, desc='SGDS')):
             x, ba, sas, qed = data
             x, ba, sas, qed = x.cuda(), ba.cuda(), sas.cuda(), qed.cuda()
             target = x.detach().clone()
@@ -437,7 +306,19 @@ def multi_prop_design(model_path, args):
             batch_size = x.size(0)
 
             z_0 = sample_p_0(x, args)
-            z_y, _ = model.infer_z_given_y(z_0, [ba + 0.5, sas - 0.05, qed + 0.05], n_iter=30, step_size=0.5)
+
+            if epoch > 0:
+                try:
+                    end = i * bs + batch_size
+                    z_0 = latent_z_old[i * bs:end, :]
+                except:
+                    print('Error, use z0 instead')
+            z_y, _ = model.infer_z_given_y(z_0, [ba + 0.5, sas - 0.05, qed + 0.05], n_iter=2, step_size=0.5)
+
+            if i == 0:
+                latent_z_new = z_y
+            else:
+                latent_z_new = torch.cat((latent_z_new, z_y), 0)
 
             samples, _ = model.inference(x.device, sos_idx=108, z=z_y, training=False)
             # ba_hat = model.mlp_ba(z_y)
@@ -470,17 +351,26 @@ def multi_prop_design(model_path, args):
                     QEDs.append(QED)
                     filtered_samples.append(s)
                     IDs.append(id)
-        num_print = 20
+        num_print = 30
         x_new = np.array(x_new)
         x_new = x_new[IDs]
         qed_new = np.array(QEDs)
+        latent_z_new = latent_z_new[IDs, :]
         # ba_new = torch.zeros(len(qed_new))
         ba_new = smiles_to_affinity(filtered_samples, args.autodock_executable, args.protein_file, num_devices=1)
         ba_new = np.array(ba_new) * (-1)
+
         ind = np.argsort(ba_new)
         ind = ind[::-1][:num_print]
         kd = np.exp(ba_new[ind] * (-1) / (0.00198720425864083 * 298.15)).flatten()
         sas_new = np.array(SASs) / 10.
+
+        name = str(epoch) + '_ba.npy'
+        np.save(name, ba_new)
+        name = str(epoch) + '_qed.npy'
+        np.save(name, qed_new)
+        name = str(epoch) + '_sa.npy'
+        np.save(name, sas_new)
 
         mols = []
         props = []
@@ -490,19 +380,20 @@ def multi_prop_design(model_path, args):
             print(ba_new[id], kd[i], sas_new[id] * 10, qed_new[id], filtered_samples[id])
             m = Chem.MolFromSmiles(filtered_samples[id])
             mols.append(m)
-            s = '{:.5f}\n'.format(kd[i] * 10 ** 9)
+            s = '{:.3f} '.format(kd[i] * 10 ** 9) + '{:.2f} '.format(sas_new[id] * 10) + '{:.3f}\n'.format(qed_new[id])
             props.append(s)
         fig = Draw.MolsToGridImage(mols, molsPerRow=5, legends=props)
         fig.save('Kd_epoch' + str(epoch) + '.png')
 
         # Prepare New dataset
         x_old, x_new = torch.tensor(np.array(x_old)), torch.tensor(np.array(x_new))
-        print(x_old.shape, x_new.shape)
+        # print(x_old.shape, x_new.shape)
         # if x_old.shape[1] != x_new.shape[1]:
         #     x_tmp = torch.zeros(x_old.shape[0], x_new.shape[1])
         #     x_tmp[:, :] = 58.
         #     x_tmp[:, :x_old.shape[1]] = x_old
         #     x_old = x_tmp
+
         ba_new = torch.tensor(np.array(ba_new), dtype=torch.float).squeeze()
         sas_new = torch.tensor(np.array(sas_new), dtype=torch.float).squeeze()
         qed_new = torch.tensor(np.array(qed_new), dtype=torch.float).squeeze()
@@ -513,10 +404,18 @@ def multi_prop_design(model_path, args):
 
         assert len(ba_old) == len(sas_old) == len(qed_old)
 
-        Xdata = torch.cat([x_old, x_new], dim=0)
-        ba_data = torch.cat([ba_old, ba_new])
-        sas_data = torch.cat([sas_old, sas_new])
-        qed_data = torch.cat([qed_old, qed_new])
+        if epoch > 0:
+            Xdata = torch.cat([x_old, x_new], dim=0)
+            ba_data = torch.cat([ba_old, ba_new])
+            sas_data = torch.cat([sas_old, sas_new])
+            qed_data = torch.cat([qed_old, qed_new])
+            latent_z_old = torch.cat([latent_z_old, latent_z_new], dim=0)
+        else:
+            Xdata = x_new
+            ba_data = ba_new
+            sas_data = sas_new
+            qed_data = qed_new
+            latent_z_old = latent_z_new
 
         max_len = 10000
         if len(ba_data) > max_len:

@@ -43,7 +43,135 @@ def cal_logp(smi):
     return logP
 
 
+def check_model(model_path, args):
+    args = args
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
+    test_data = MolDataset(args.data_dir, "test")
+    test_loader = DataLoader(dataset=test_data, batch_size=1000,
+                             shuffle=True, drop_last=False, num_workers=2)
+
+    logger.info('loading model from ' + model_path)
+    vocab_size = 109
+    # model = RNNEBM(args, vocab_size=vocab_size,
+    #                dec_word_dim=args.dec_word_dim,
+    #                dec_h_dim=args.dec_h_dim,
+    #                dec_num_layers=args.dec_num_layers,
+    #                dec_dropout=args.dec_dropout,
+    #                latent_dim=args.latent_dim,
+    #                max_sequence_length=args.max_len)
+    # checkpoint = torch.load(model_path)
+    # model.load_state_dict(checkpoint['model'].state_dict())
+    checkpoint = torch.load(model_path)
+    model = checkpoint['model']
+    model.cuda()
+    print(model)
+
+    args.beta = 1
+    model.prior_network.eval()
+    criterion = nn.NLLLoss(reduction='sum')
+    total_nll_abp = 0.
+    pps = 0.
+    nps = 0.
+    cds = 0.
+    n_cd = 0.
+    test_data_size = 0
+    generated_samples = []
+    properties = []
+    for i, data in enumerate(tqdm(test_loader)):
+        # if i > 2:
+        #     break
+        x, x_len, ba, sas, qed = data
+        x, ba, sas, qed = x.cuda(), ba.cuda(), sas.cuda(), qed.cuda()
+        x_len = x_len.cuda()
+        target = x.detach().clone()
+        target = target[:, 1:]
+        batch_size = x.size(0)
+
+        z_0 = sample_p_0(x, args)
+        z_samples, z_grads = model.infer_z(z=z_0, x=x, x_len=x_len, y=[ba, sas, qed], beta=args.beta,
+                                           step_size=args.z_step_size, training=False,
+                                           dropout=args.dec_dropout, debug=args.debug)
+
+        preds = model.decoder(x, z_samples, training=False)
+        abp_loss = criterion(preds.view(-1, preds.size(2)), target.reshape(-1)) / batch_size
+
+        z_0_prior = sample_p_0(x, args)
+        z_prior, _ = model.infer_prior_z(z_0_prior, args)
+        positive_potential = model.ebm_prior(z_samples, args).mean()
+        negative_potential = model.ebm_prior(z_prior, args).mean()
+        cd = positive_potential - negative_potential
+        pps += positive_potential
+        nps += negative_potential
+        cds += cd
+        n_cd += 1.
+
+        total_nll_abp += abp_loss.item()
+        test_data_size += batch_size
+
+        samples, _ = model.inference(x.device, sos_idx=108, z=z_prior, training=False)
+        y_hat = model.mlp_qed(z_prior)
+
+        for s in samples:
+            generated_samples.append(label2sf2smi(s.cpu().numpy()))
+
+        properties.append(y_hat.detach().cpu().numpy())
+
+    properties = np.array(properties).reshape(len(generated_samples))
+    properties = list(properties)
+
+    logPs, SASs, QEDs, PlogPs = [], [], [], []
+    num_valid = 0
+    for s in generated_samples:
+        _is_valid = is_valid(s)
+        if _is_valid != 0:
+            num_valid += _is_valid[0]
+            logP, SAS, QED, plogP = _is_valid[1]
+            logPs.append(logP)
+            QEDs.append(QED)
+            PlogPs.append(plogP)
+
+    validity = num_valid / len(generated_samples)
+    data_properties = get_data_properties(args.test_file)
+
+    epoch = 0
+    single_property_plot_qed(args, epoch, QEDs, properties, data_properties)
+    # test_data = MolDataset(args.data_dir, "test")
+    # data_plogp = test_data.PlogP
+    # data_plogp = data_plogp.numpy().tolist()
+    # single_property_plot_plogp(args, epoch, PlogPs, properties, data_plogp)
+
+    # uniqueness
+    unique_set = set(generated_samples)  
+    validity = num_valid / len(generated_samples)
+    uniqueness = len(unique_set) / len(generated_samples)
+
+    # novelty
+    ZINC_file = "../ZINC/test_5.txt"
+    ZINC_data = [x.strip().split()[0] for x in open(ZINC_file) if not x.startswith("#smi")]
+    ZINC_set = set(ZINC_data)
+    novel_list = list(unique_set - ZINC_set)
+    novelty = len(novel_list) / len(generated_samples)
+
+    rec_abp = total_nll_abp / test_data_size
+    pe = pps / n_cd
+    ne = nps / n_cd
+    mcd = cds / n_cd
+
+    logger.record_tabular('ABP REC', rec_abp)
+    logger.record_tabular('PP', pe)
+    logger.record_tabular('NP', ne)
+    logger.record_tabular('CD', mcd)
+    logger.record_tabular('Prior Validity', validity)
+    logger.record_tabular('Prior Uniqueness', uniqueness)
+    logger.record_tabular('Prior Novelty', novelty)
+    # logger.record_tabular('Posterior Validity', posterior_prop_valid)
+
+    logger.dump_tabular()
+
+    model.train()
+    return validity
 
 
 def property_plot(args, logps, y_hat, data_properties):
@@ -209,7 +337,7 @@ def multi_prop_design(model_path, args):
     print(model)
 
     args.beta = 1
-    num_design = 15
+    num_design = 20
 
     sos = torch.tensor([108], dtype=torch.long)
     criterion = nn.NLLLoss(reduction='sum')
@@ -224,7 +352,7 @@ def multi_prop_design(model_path, args):
     Xdata, ba_data, sas_data, qed_data = 0, 0, 0, 0
     for epoch in range(num_design):
         if epoch == 0:
-            design_data = DesignDataset(x=test_data.Xdata, ba=test_data.ba1, sas=test_data.sas, qed=test_data.qed)
+            design_data = DesignDataset(x=test_data.Xdata, ba=test_data.ba0, sas=test_data.sas, qed=test_data.qed)
         else:
             design_data = DesignDataset(x=Xdata, ba=ba_data, sas=sas_data, qed=qed_data)
         design_loader = DataLoader(dataset=design_data, batch_size=1000, shuffle=True, drop_last=False)
@@ -324,22 +452,6 @@ def multi_prop_design(model_path, args):
                 qed_old.append(qed[idx].cpu().numpy())
                 sas_old.append(sas[idx].cpu().numpy())
 
-        unique_set = set(generated_samples)  # Todo: two different smiles might be the same molecule
-        validity = 1
-        uniqueness = len(unique_set) / len(generated_samples)
-
-        # novelty
-        ZINC_file = "../ZINC/test_5.txt"
-        ZINC_data = [x.strip().split()[0] for x in open(ZINC_file) if not x.startswith("#smi")]
-        ZINC_set = set(ZINC_data)
-        novel_list = list(unique_set - ZINC_set)
-        novelty = len(novel_list) / len(generated_samples)
-        print('Here', validity, uniqueness, novelty)
-        logger.record_tabular('Prior Validity', validity)
-        logger.record_tabular('Prior Uniqueness', uniqueness)
-        logger.record_tabular('Prior Novelty', novelty)
-        # logger.record_tabular('Posterior Validity', posterior_prop_valid)
-
         max_sa, min_qed = 5.5, 0.4
         filtered_samples = []
 
@@ -358,7 +470,7 @@ def multi_prop_design(model_path, args):
                     QEDs.append(QED)
                     filtered_samples.append(s)
                     IDs.append(id)
-        num_print = 30
+        num_print = 20
         x_new = np.array(x_new)
         x_new = x_new[IDs]
         qed_new = np.array(QEDs)
@@ -420,14 +532,14 @@ if __name__ == '__main__':
     # smi2selfies()
     args = get_args()
     # print(args.mask)
-    exp_id = 'ebm_multi_design_ba1'
+    exp_id = 'ebm_multi_design_esr1'
     output_dir = get_output_dir(exp_id, fs_prefix='../exp_')
     # copy_source(__file__, output_dir)
     set_gpu(args.gpu)
 
     args.output_dir = output_dir
     args.max_len = 72
-    model_path = '24.pt'
+    model_path = '28.pt'
     # single_prop_design(model_path, args)
     # check_model(model_path, args)
     multi_prop_design(model_path, args)
