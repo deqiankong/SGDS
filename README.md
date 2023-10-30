@@ -11,12 +11,9 @@ In this paper, we studied the following property optimization tasks:
 * multi-objective (ESR1, QED, SA) optmization
 * multi-objective (ACAA1, QED, SA) optmization
 
-![alt text](https://github.com/deqiankong/SGDS/blob/main/figure/single.png)
-![alt text](https://github.com/deqiankong/SGDS/blob/main/figure/multi.png)
-
 <p align="center">
-  <img src="https://github.com/deqiankong/SGDS/blob/main/figure/single.png" width="350">
-  <img src="https://github.com/deqiankong/SGDS/blob/main/figure/multi.png" width="350" alt="accessibility text">
+  <img src="https://github.com/deqiankong/SGDS/blob/main/figure/single.png" width="400">
+  <img src="https://github.com/deqiankong/SGDS/blob/main/figure/multi.png" width="350">
 </p>
 
 ## Enviroment
