@@ -15,6 +15,7 @@ In this paper, we studied the following property optimization tasks:
 We follow the previous work [LIMO](https://github.com/Rose-STL-Lab/LIMO) for setting up RDKit, Open Babel and AutoDock-GPU. We extend our gratitude to the authors for their significant contributions.
 
 ## Data
+We use selfies representations of ZINC250k with corresponding property values. All the property values can be computed either by RDKit or AutoDock-GPU.
 
 ## Cite
 <pre>
