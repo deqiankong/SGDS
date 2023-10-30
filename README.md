@@ -14,6 +14,11 @@ In this paper, we studied the following property optimization tasks:
 ![alt text](https://github.com/deqiankong/SGDS/blob/main/figure/single.png)
 ![alt text](https://github.com/deqiankong/SGDS/blob/main/figure/multi.png)
 
+<p align="center">
+  <img src="https://github.com/deqiankong/SGDS/blob/main/figure/single.png" width="350">
+  <img src="https://github.com/deqiankong/SGDS/blob/main/figure/multi.png" width="350" alt="accessibility text">
+</p>
+
 ## Enviroment
 We follow the previous work [LIMO](https://github.com/Rose-STL-Lab/LIMO) for setting up RDKit, Open Babel and AutoDock-GPU. We extend our gratitude to the authors for their significant contributions.
 
