@@ -16,7 +16,7 @@ In this paper, we studied the following property optimization tasks:
   <img src="https://github.com/deqiankong/SGDS/blob/main/figure/multi.png" width="350",, height="250">
 </p>
 
-## Enviroment
+## Environment
 We follow the previous work [LIMO](https://github.com/Rose-STL-Lab/LIMO) for setting up RDKit, Open Babel and AutoDock-GPU. We extend our gratitude to the authors for their significant contributions.
 
 ## Data
